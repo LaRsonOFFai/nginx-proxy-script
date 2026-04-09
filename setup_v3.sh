@@ -2,7 +2,7 @@
 
 set -e
 
-echo "=== Настройка nginx прокси для Remnawave ==="
+echo "=== Настройка nginx прокси для Remnawave (v4) ==="
 
 # 🔒 Проверка root
 if [ "$EUID" -ne 0 ]; then
@@ -59,7 +59,7 @@ fi
 # 📦 Установка certbot
 if ! command -v certbot &> /dev/null; then
   echo "Устанавливаем certbot..."
-  apt install -y certbot python3-certbot-nginx
+  apt install -y certbot
 else
   echo "Certbot уже установлен"
 fi
@@ -74,9 +74,20 @@ if [ -f /etc/nginx/sites-available/$DOMAIN ]; then
   [ "$confirm" != "y" ] && exit 1
 fi
 
-# 📝 Создание конфига
-echo "Создаем nginx конфиг..."
+# ======================
+# 1️⃣ Получаем SSL через standalone
+# ======================
+echo "Получаем SSL сертификат через certbot (standalone)..."
+if ! certbot certonly --standalone -d $DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN; then
+  echo "❌ Не удалось получить сертификат. Проверьте порт 80 и DNS"
+  exit 1
+fi
+echo "✅ SSL сертификат получен"
 
+# ======================
+# 2️⃣ Создаём nginx конфиг с HTTPS
+# ======================
+echo "Создаем nginx конфиг с HTTPS..."
 cat > /etc/nginx/sites-available/$DOMAIN <<EOF
 server {
     listen 80;
@@ -99,49 +110,29 @@ server {
         proxy_pass https://\$backend\$request_uri;
 
         proxy_http_version 1.1;
-
         proxy_set_header Host $BACKEND_HOST;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-
         proxy_set_header Connection "";
-
         proxy_buffering off;
         proxy_cache off;
-
         proxy_connect_timeout 10s;
         proxy_send_timeout 30s;
         proxy_read_timeout 30s;
-
         proxy_buffers 8 32k;
         proxy_buffer_size 64k;
-
         proxy_ssl_server_name on;
         proxy_ssl_name $BACKEND_HOST;
-
         client_max_body_size 50M;
     }
 }
 EOF
 
-# 🔗 Активация
+# 🔗 Активация и проверка nginx
 ln -sf /etc/nginx/sites-available/$DOMAIN /etc/nginx/sites-enabled/
-
-# 🔍 Проверка nginx
 echo "Проверяем nginx конфиг..."
-if ! nginx -t; then
-  echo "❌ Ошибка в конфиге nginx"
-  exit 1
-fi
-
+nginx -t
 systemctl reload nginx
-
-# 🔐 Получение SSL
-echo "Получаем SSL..."
-if ! certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN; then
-  echo "❌ Ошибка при получении SSL. Проверьте порт 80 и DNS"
-  exit 1
-fi
 
 echo "🎉 Готово! Прокси настроен: https://$DOMAIN"
