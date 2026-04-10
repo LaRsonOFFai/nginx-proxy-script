@@ -1,8 +1,2 @@
 # nginx-proxy-script
-https://raw.githubusercontent.com/LaRsonOFFai/nginx-proxy-script/main/setup.sh
-
-V2
-https://github.com/LaRsonOFFai/nginx-proxy-script/main/setup_v2.sh
-
-
-v3 https://github.com/LaRsonOFFai/nginx-proxy-script/main/setup_v3.sh
+v3 wget https://raw.githubusercontent.com/LaRsonOFFai/nginx-proxy-script/main/setup_v3.sh
